@@ -1,0 +1,29 @@
+# 의존성
+node_modules/
+
+# 빌드 산출물
+dist/
+
+# 환경변수 (비밀값 - 절대 커밋 금지)
+.env
+.env.local
+.env.*.local
+
+# 로그
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 에디터/OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# 테스트 커버리지
+coverage/
+
+# Claude Code 로컬 작업 폴더
+.claude/
