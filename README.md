@@ -45,11 +45,3 @@ npm test
 
 S1에서 추가 예정: `/api/v1/auth/*`, `/api/v1/users/*`
 
-## 다음 단계 (S1-T01)
-
-- [ ] Supabase 클라이언트 실제 연결 (`src/lib/supabase.ts`)
-- [ ] JWT 발급/검증 구현 (`src/lib/jwt.ts`)
-- [ ] 인증 미들웨어 구현 (`src/middlewares/authMiddleware.ts`)
-- [ ] auth 모듈: 회원가입 / 로그인 / 토큰 갱신 / Google OAuth
-- [ ] user 모듈: 프로필 조회·수정
-- [ ] Resend 이메일 인증 (`src/lib/mailer.ts`)
