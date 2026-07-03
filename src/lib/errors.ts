@@ -26,6 +26,8 @@ export const Errors = {
     new AppError("AUTH_TOKEN_EXPIRED", 401, "만료된 토큰입니다."),
   AUTH_UNAUTHORIZED: () =>
     new AppError("AUTH_UNAUTHORIZED", 401, "인증이 필요합니다."),
+  AUTH_GOOGLE_FAILED: () =>
+    new AppError("AUTH_GOOGLE_FAILED", 401, "구글 인증에 실패했습니다."),
   NOT_FOUND: (resource = "리소스") =>
     new AppError("NOT_FOUND", 404, `${resource}를 찾을 수 없습니다.`),
   LOGIC_NOT_FOUND: () =>

@@ -66,6 +66,67 @@ export const setEmailVerified = async (userId: string): Promise<void> => {
   await query("UPDATE users SET email_verified = true WHERE id = $1", [userId]);
 };
 
+// ─── User Identities (소셜 로그인) ───────────────────────────────────────────
+
+export const findUserIdentityByProvider = async (
+  provider: string,
+  providerUserId: string,
+): Promise<{ user_id: string } | null> => {
+  const res = await query<{ user_id: string }>(
+    "SELECT user_id FROM user_identities WHERE provider = $1 AND provider_user_id = $2",
+    [provider, providerUserId],
+  );
+  return res.rows[0] ?? null;
+};
+
+export const insertUserIdentity = async (
+  userId: string,
+  provider: string,
+  providerUserId: string,
+): Promise<void> => {
+  await query(
+    `INSERT INTO user_identities (user_id, provider, provider_user_id)
+     VALUES ($1, $2, $3)`,
+    [userId, provider, providerUserId],
+  );
+};
+
+/** OAuth 유저 생성 — users(password_hash NULL, email_verified true) + user_identities 트랜잭션 */
+export const insertOAuthUser = async (params: {
+  email: string;
+  name: string;
+  nickname: string;
+  provider: string;
+  providerUserId: string;
+}): Promise<UserRow> => {
+  const client = await getClient();
+  try {
+    await client.query("BEGIN");
+
+    const userRes = await client.query<UserRow>(
+      `INSERT INTO users (email, name, nickname, password_hash, email_verified)
+       VALUES ($1, $2, $3, NULL, true)
+       RETURNING id, email, name, nickname, password_hash, email_verified, status, role`,
+      [params.email, params.name, params.nickname],
+    );
+    const user = userRes.rows[0];
+
+    await client.query(
+      `INSERT INTO user_identities (user_id, provider, provider_user_id)
+       VALUES ($1, $2, $3)`,
+      [user.id, params.provider, params.providerUserId],
+    );
+
+    await client.query("COMMIT");
+    return user;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
 // ─── Refresh Tokens ───────────────────────────────────────────────────────────
 
 export const insertRefreshToken = async (params: {

@@ -22,4 +22,8 @@ router.post(
   asyncHandler(ctrl.resendVerification),
 );
 
+// 구글 OAuth (리다이렉트 방식)
+router.get("/google", asyncHandler(ctrl.googleStart));
+router.get("/google/callback", asyncHandler(ctrl.googleCallback));
+
 export default router;
