@@ -1,5 +1,6 @@
 import { query, getClient } from "../../lib/db.js";
 import { formatLocalDate } from "../../lib/date.js";
+import { Errors } from "../../lib/errors.js";
 import type {
   SessionCreateInput,
   SessionUpdateInput,
@@ -216,19 +217,19 @@ function buildRecord(
 
 // ─── Public API ─────────────────────────────────────────────────────────────
 
-export async function findByDateOwned(
+export async function findGroupsByDate(
   userId: string,
   date: string,
-): Promise<DailyRecordResponse | null> {
+): Promise<DailyRecordResponse[]> {
   const res = await query<DailyRecordRow>(
-    `SELECT * FROM daily_records WHERE user_id = $1 AND date = $2`,
+    `SELECT * FROM daily_records WHERE user_id = $1 AND date = $2 ORDER BY created_at`,
     [userId, date],
   );
-  if (res.rows.length === 0) return null;
+  if (res.rows.length === 0) return [];
 
-  const record = res.rows[0];
-  const { snapshots, snapCats, sessions } = await fetchRelated([record.id]);
-  return buildRecord(record, snapshots, snapCats, sessions);
+  const recordIds = res.rows.map((r) => r.id);
+  const { snapshots, snapCats, sessions } = await fetchRelated(recordIds);
+  return res.rows.map((r) => buildRecord(r, snapshots, snapCats, sessions));
 }
 
 export async function listByMonth(
@@ -241,7 +242,7 @@ export async function listByMonth(
      WHERE user_id = $1
        AND date >= make_date($2, $3, 1)
        AND date < make_date($2, $3, 1) + INTERVAL '1 month'
-     ORDER BY date`,
+     ORDER BY date, created_at`,
     [userId, year, month],
   );
   if (res.rows.length === 0) return [];
@@ -262,11 +263,27 @@ export async function upsertRecordAndAddSession(
   try {
     await client.query("BEGIN");
 
-    // 1) daily_record upsert
+    // 0) logicId 존재/소유권 사전 검증 — 다중 탭/기기에서 로직이 방금 삭제된 뒤
+    //    이미 열려 있던 타이머가 옛 logicId로 세션 저장을 시도하는 경우, DB FK
+    //    위반(23503)이 그대로 500으로 새어나가지 않도록 여기서 명시적으로 막는다.
+    //    같은 트랜잭션 안에서 확인하므로 검증 이후 삭제와 경합할 여지가 없다.
+    if (logicId) {
+      const logicCheck = await client.query(
+        `SELECT 1 FROM study_logics WHERE id = $1 AND user_id = $2`,
+        [logicId, userId],
+      );
+      if (logicCheck.rows.length === 0) {
+        // catch 블록에서 ROLLBACK + release를 일괄 처리하므로 여기서는 throw만 한다.
+        throw Errors.LOGIC_NOT_FOUND();
+      }
+    }
+
+    // 1) daily_record upsert — (user_id, date, logic_id) 조합 단위 그룹.
+    //    같은 날 다른 로직으로 세션을 추가하면 별도 행(그룹)이 새로 생긴다.
     const recRes = await client.query<DailyRecordRow>(
       `INSERT INTO daily_records (user_id, date, logic_id)
        VALUES ($1, $2, $3)
-       ON CONFLICT (user_id, date) DO UPDATE SET updated_at = now()
+       ON CONFLICT (user_id, date, logic_id) DO UPDATE SET updated_at = now()
        RETURNING *`,
       [userId, date, logicId ?? null],
     );
@@ -382,10 +399,62 @@ export async function updateSession(
   return mapSession(res.rows[0]);
 }
 
-export async function deleteSession(sessionId: string, userId: string): Promise<boolean> {
-  const res = await query(
-    `DELETE FROM sessions WHERE id = $1 AND user_id = $2`,
+// 세션이 속한 로직 그룹(daily_record)의 스냅샷 카테고리 id 목록.
+// 세션이 없거나 소유자가 다르면 null, 있으면(스냅샷 카테고리가 없어도) 배열 반환.
+export async function getSessionGroupCategoryIds(
+  sessionId: string,
+  userId: string,
+): Promise<string[] | null> {
+  const res = await query<{ category_id: string | null }>(
+    `SELECT sc.category_id
+     FROM sessions s
+     LEFT JOIN logic_snapshots ls ON ls.daily_record_id = s.daily_record_id
+     LEFT JOIN snapshot_categories sc ON sc.snapshot_id = ls.id
+     WHERE s.id = $1 AND s.user_id = $2`,
     [sessionId, userId],
   );
-  return (res.rowCount ?? 0) > 0;
+  if (res.rows.length === 0) return null;
+  return res.rows.map((r) => r.category_id).filter((id): id is string => id !== null);
+}
+
+export async function deleteSession(sessionId: string, userId: string): Promise<boolean> {
+  const client = await getClient();
+  try {
+    await client.query("BEGIN");
+
+    const delRes = await client.query<{ daily_record_id: string }>(
+      `DELETE FROM sessions WHERE id = $1 AND user_id = $2 RETURNING daily_record_id`,
+      [sessionId, userId],
+    );
+    if (delRes.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return false;
+    }
+    const recordId = delRes.rows[0].daily_record_id;
+
+    // 그룹(daily_record) 행에 락을 걸어, 같은 그룹에 새 세션을 추가하려는
+    // upsertRecordAndAddSession 트랜잭션과의 경합을 직렬화한다.
+    // (락을 먼저 잡은 쪽이 처리를 끝낼 때까지 다른 쪽은 대기했다가, 커밋된
+    //  최신 세션 수를 기준으로 판단하므로 "마지막 세션 삭제"와 "새 세션 추가"가
+    //  동시에 일어나도 세션이 남아있는 그룹이 잘못 삭제되는 일은 없다.)
+    await client.query(`SELECT 1 FROM daily_records WHERE id = $1 FOR UPDATE`, [recordId]);
+
+    const remaining = await client.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM sessions WHERE daily_record_id = $1`,
+      [recordId],
+    );
+    if (remaining.rows[0].count === "0") {
+      // 남은 세션이 없으면 빈 로직 그룹 정리 — logic_snapshots/snapshot_categories는
+      // ON DELETE CASCADE로 함께 삭제된다.
+      await client.query(`DELETE FROM daily_records WHERE id = $1`, [recordId]);
+    }
+
+    await client.query("COMMIT");
+    return true;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 }

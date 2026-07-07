@@ -33,6 +33,12 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32, "JWT_REFRESH_SECRET은 32자 이상이어야 합니다"),
   ACCESS_TOKEN_TTL: z.string().default("15m"),
   REFRESH_TOKEN_TTL: z.string().default("7d"),
+}).refine((d) => d.JWT_ACCESS_SECRET !== d.JWT_REFRESH_SECRET, {
+  // 두 시크릿이 같으면 refresh 토큰(만료 7일)이 verifyAccessToken 서명 검증도
+  // 그대로 통과해버려, access 토큰의 실질 유효기간이 15분이 아니라 최대 7일로
+  // 늘어나는 효과가 생긴다. 부팅 시점에 강제로 차단한다.
+  message: "JWT_ACCESS_SECRET과 JWT_REFRESH_SECRET은 반드시 서로 다른 값이어야 합니다",
+  path: ["JWT_REFRESH_SECRET"],
 });
 
 const parsed = envSchema.safeParse(process.env);

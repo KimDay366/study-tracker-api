@@ -10,7 +10,7 @@ const router = Router();
 router.use(authMiddleware);
 
 router.get("/", asyncHandler(ctrl.listByMonth));
-router.get("/:date", asyncHandler(ctrl.getOne));
+router.get("/:date", asyncHandler(ctrl.getGroupsByDate));
 router.post("/:date/sessions", validate(SessionCreateSchema), asyncHandler(ctrl.addSession));
 router.put("/:date/sessions/:sessionId", validate(SessionUpdateSchema), asyncHandler(ctrl.updateSession));
 router.delete("/:date/sessions/:sessionId", asyncHandler(ctrl.deleteSession));

@@ -7,9 +7,9 @@ import {
   type SessionUpdateInput,
 } from "./daily-records.types.js";
 
-export const getOne = async (req: Request, res: Response): Promise<void> => {
-  const record = await service.getDailyRecord(req.user!.id, req.params["date"] as string);
-  res.json(record);
+export const getGroupsByDate = async (req: Request, res: Response): Promise<void> => {
+  const groups = await service.getDailyRecordGroups(req.user!.id, req.params["date"] as string);
+  res.json(groups);
 };
 
 export const listByMonth = async (req: Request, res: Response): Promise<void> => {

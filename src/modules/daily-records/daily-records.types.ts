@@ -21,8 +21,8 @@ export const SessionCreateSchema = z.object({
   sessionEndTimestamp: z.number().int(),
   durationMinutes: z.number().int().min(0),
   source: z.enum(["timer", "manual"]),
-  logicId: z.string().uuid().optional(),
-  logicSnapshot: LogicSnapshotInputSchema.optional(),
+  logicId: z.string().uuid(),
+  logicSnapshot: LogicSnapshotInputSchema,
 });
 
 export const SessionUpdateSchema = z.object({

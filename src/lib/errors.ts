@@ -28,6 +28,14 @@ export const Errors = {
     new AppError("AUTH_UNAUTHORIZED", 401, "인증이 필요합니다."),
   AUTH_GOOGLE_FAILED: () =>
     new AppError("AUTH_GOOGLE_FAILED", 401, "구글 인증에 실패했습니다."),
+  AUTH_GOOGLE_LINK_UNVERIFIED: () =>
+    new AppError(
+      "AUTH_GOOGLE_LINK_UNVERIFIED",
+      409,
+      "이미 가입된 이메일입니다. 이메일 인증을 완료한 뒤 구글 로그인으로 연동해주세요.",
+    ),
+  AUTH_RATE_LIMITED: () =>
+    new AppError("AUTH_RATE_LIMITED", 429, "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."),
   NOT_FOUND: (resource = "리소스") =>
     new AppError("NOT_FOUND", 404, `${resource}를 찾을 수 없습니다.`),
   LOGIC_NOT_FOUND: () =>
@@ -38,10 +46,14 @@ export const Errors = {
     new AppError("CATEGORY_LIMIT_EXCEEDED", 409, "카테고리는 최대 10개까지 추가할 수 있습니다."),
   INVALID_COLOR_VAR: () =>
     new AppError("INVALID_COLOR_VAR", 400, "유효하지 않은 컬러 변수입니다."),
-  DAILY_RECORD_NOT_FOUND: () =>
-    new AppError("DAILY_RECORD_NOT_FOUND", 404, "일일 기록을 찾을 수 없습니다."),
   SESSION_NOT_FOUND: () =>
     new AppError("SESSION_NOT_FOUND", 404, "세션을 찾을 수 없습니다."),
+  SESSION_CATEGORY_INVALID: () =>
+    new AppError(
+      "SESSION_CATEGORY_INVALID",
+      400,
+      "선택한 카테고리는 이 세션이 속한 로직 그룹에 존재하지 않습니다.",
+    ),
   WEEKLY_REVIEW_NOT_FOUND: () =>
     new AppError("WEEKLY_REVIEW_NOT_FOUND", 404, "주간 회고를 찾을 수 없습니다."),
   INVALID_DATE_FORMAT: () =>

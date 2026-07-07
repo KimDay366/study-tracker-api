@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import type { Request, Response } from "express";
 import * as service from "./auth.service.js";
 import { env } from "../../lib/env.js";
-import { Errors } from "../../lib/errors.js";
+import { AppError, Errors } from "../../lib/errors.js";
 import { getGoogleAuthUrl } from "../../lib/google.js";
 
 const REFRESH_COOKIE = "refreshToken";
@@ -106,6 +106,25 @@ export const googleCallback = async (req: Request, res: Response): Promise<void>
     res.redirect(`${env.CLIENT_ORIGIN}/`);
   } catch (err) {
     console.error("[googleCallback]", err);
-    res.redirect(`${env.CLIENT_ORIGIN}/login?error=google`);
+    // 프론트가 상황별 안내 문구를 보여줄 수 있도록 에러 코드를 error 쿼리파라미터로 구분한다.
+    // account_suspended/account_deleted는 refresh 경로(이세영)에서 이미 쓰는 값과
+    // 동일하게 맞춰 프론트 추가 작업 없이 재사용되도록 한다.
+    const errorParam = errorParamFor(err);
+    res.redirect(`${env.CLIENT_ORIGIN}/login?error=${errorParam}`);
+  }
+};
+
+/** googleCallback 실패 시 프론트로 전달할 error 쿼리파라미터 매핑 */
+const errorParamFor = (err: unknown): string => {
+  if (!(err instanceof AppError)) return "google";
+  switch (err.code) {
+    case "AUTH_GOOGLE_LINK_UNVERIFIED":
+      return "google_unverified";
+    case "AUTH_ACCOUNT_SUSPENDED":
+      return "account_suspended";
+    case "AUTH_ACCOUNT_DELETED":
+      return "account_deleted";
+    default:
+      return "google";
   }
 };
