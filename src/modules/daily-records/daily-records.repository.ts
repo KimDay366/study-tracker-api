@@ -222,7 +222,10 @@ export async function findGroupsByDate(
   date: string,
 ): Promise<DailyRecordResponse[]> {
   const res = await query<DailyRecordRow>(
-    `SELECT * FROM daily_records WHERE user_id = $1 AND date = $2 ORDER BY created_at`,
+    `SELECT * FROM daily_records
+     WHERE user_id = $1 AND date = $2
+       AND EXISTS (SELECT 1 FROM sessions s WHERE s.daily_record_id = daily_records.id)
+     ORDER BY created_at`,
     [userId, date],
   );
   if (res.rows.length === 0) return [];
@@ -242,6 +245,7 @@ export async function listByMonth(
      WHERE user_id = $1
        AND date >= make_date($2, $3, 1)
        AND date < make_date($2, $3, 1) + INTERVAL '1 month'
+       AND EXISTS (SELECT 1 FROM sessions s WHERE s.daily_record_id = daily_records.id)
      ORDER BY date, created_at`,
     [userId, year, month],
   );
@@ -332,6 +336,22 @@ export async function upsertRecordAndAddSession(
         sessionData.source,
       ],
     );
+
+    // 3.5) 빈 그룹 방어 — 세션 insert가 no-op(중복 id)이라 이 그룹에 세션이
+    //      하나도 붙지 않은 경우, 방금 upsert한 빈 daily_record 행이 영구히
+    //      남지 않도록 정리한다(스냅샷/카테고리는 ON DELETE CASCADE로 함께 삭제).
+    //      삭제 경로(deleteSession)의 "빈 그룹 정리" 불변식을 생성 경로에도
+    //      동일하게 적용 — 세션 0개 로직이 달력에 표시되던 버그의 근본 차단.
+    //      정상 경로(세션이 실제 insert됨)에는 이 분기가 실행되지 않는다.
+    if (sessRes.rows.length === 0) {
+      const remaining = await client.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM sessions WHERE daily_record_id = $1`,
+        [record.id],
+      );
+      if (remaining.rows[0].count === "0") {
+        await client.query(`DELETE FROM daily_records WHERE id = $1`, [record.id]);
+      }
+    }
 
     await client.query("COMMIT");
     client.release();
