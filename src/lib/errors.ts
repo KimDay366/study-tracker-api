@@ -56,6 +56,18 @@ export const Errors = {
     ),
   WEEKLY_REVIEW_NOT_FOUND: () =>
     new AppError("WEEKLY_REVIEW_NOT_FOUND", 404, "주간 회고를 찾을 수 없습니다."),
+  WEEKLY_REVIEW_NOT_OPEN: () =>
+    new AppError(
+      "WEEKLY_REVIEW_NOT_OPEN",
+      403,
+      "아직 이 주의 정리를 작성할 수 없어요. 해당 주 일요일부터 작성할 수 있어요.",
+    ),
+  WEEKLY_REVIEW_WINDOW_CLOSED: () =>
+    new AppError(
+      "WEEKLY_REVIEW_WINDOW_CLOSED",
+      403,
+      "주간 정리 등록·수정 기간이 지났어요. 해당 주 일요일로부터 30일까지만 가능해요.",
+    ),
   INVALID_DATE_FORMAT: () =>
     new AppError("INVALID_DATE_FORMAT", 400, "날짜 형식이 올바르지 않습니다. YYYY-MM-DD를 사용하세요."),
 } as const;
