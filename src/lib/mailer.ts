@@ -52,10 +52,10 @@ class ResendMailer implements Mailer {
     const { error } = await this.client.emails.send({
       from: this.from,
       to,
-      subject: "[Study Tracker] 이메일 인증을 완료해주세요",
+      subject: "[차곡] 이메일 인증을 완료해주세요",
       html: emailLayout(
         "이메일 인증",
-        "Study Tracker 가입을 환영합니다! 아래 버튼을 눌러 이메일 인증을 완료해주세요.",
+        "차곡 가입을 환영합니다! 아래 버튼을 눌러 이메일 인증을 완료해주세요.",
         link,
         "이메일 인증하기",
       ),
@@ -70,7 +70,7 @@ class ResendMailer implements Mailer {
     const { error } = await this.client.emails.send({
       from: this.from,
       to,
-      subject: "[Study Tracker] 비밀번호 재설정 안내",
+      subject: "[차곡] 비밀번호 재설정 안내",
       html: emailLayout(
         "비밀번호 재설정",
         "아래 버튼을 눌러 비밀번호를 재설정하세요. 본인이 요청하지 않았다면 이 메일을 무시하세요.",
