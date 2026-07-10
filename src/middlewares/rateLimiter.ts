@@ -46,6 +46,9 @@ export const signupLimiter = createAuthLimiter(60 * 1000, 10);
 /** 인증 메일 재발송 — 이메일 폭탄(스팸) 방어. IP+이메일 조합 기준 10분 5회. */
 export const resendVerificationLimiter = createAuthLimiter(10 * 60 * 1000, 5);
 
+/** 이메일 중복확인 — 가입 폼 실시간 검사. 이메일 열거 남용 방어차 IP+이메일 조합 1분 30회. */
+export const checkEmailLimiter = createAuthLimiter(60 * 1000, 30);
+
 /** 이메일 인증 — 토큰 대입 방어(심층 방어용). IP 기준 1분 20회. */
 export const verifyEmailLimiter = createAuthLimiter(60 * 1000, 20);
 

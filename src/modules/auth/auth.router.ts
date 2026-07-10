@@ -7,18 +7,26 @@ import {
   resendVerificationLimiter,
   verifyEmailLimiter,
   googleCallbackLimiter,
+  checkEmailLimiter,
 } from "../../middlewares/rateLimiter.js";
 import {
   SignupSchema,
   LoginSchema,
   VerifyEmailSchema,
   ResendVerificationSchema,
+  CheckEmailSchema,
 } from "./auth.types.js";
 import * as ctrl from "./auth.controller.js";
 
 const router = Router();
 
 router.post("/signup", signupLimiter, validate(SignupSchema), asyncHandler(ctrl.signup));
+router.post(
+  "/check-email",
+  checkEmailLimiter,
+  validate(CheckEmailSchema),
+  asyncHandler(ctrl.checkEmail),
+);
 router.post("/login", loginLimiter, validate(LoginSchema), asyncHandler(ctrl.login));
 router.post("/refresh", asyncHandler(ctrl.refresh));
 router.post("/logout", asyncHandler(ctrl.logout));

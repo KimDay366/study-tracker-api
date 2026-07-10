@@ -51,6 +51,16 @@ export const signup = async (
   return { message: "가입이 완료되었습니다. 이메일 인증 후 로그인할 수 있습니다." };
 };
 
+/**
+ * 이메일 사용 가능 여부(중복 아님) 확인 — 가입 폼 실시간 검사용.
+ * 이메일은 DB에서 UNIQUE이며, 여기서도 대소문자 정규화된 값으로 조회한다.
+ * 참고: 가입 시점에도 AUTH_EMAIL_EXISTS로 최종 검증하므로 이 결과는 UX 사전 안내용이다.
+ */
+export const isEmailAvailable = async (email: string): Promise<boolean> => {
+  const existing = await repo.findUserByEmail(email);
+  return !existing;
+};
+
 export const login = async (
   input: LoginInput,
 ): Promise<AuthTokenResponse & { refreshToken: string }> => {

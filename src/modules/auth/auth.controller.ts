@@ -51,6 +51,11 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   res.json(body);
 };
 
+export const checkEmail = async (req: Request, res: Response): Promise<void> => {
+  const available = await service.isEmailAvailable(req.body.email as string);
+  res.json({ available });
+};
+
 export const refresh = async (req: Request, res: Response): Promise<void> => {
   const token: string | undefined = req.cookies?.[REFRESH_COOKIE];
   if (!token) {
