@@ -206,11 +206,28 @@ export const logout = async (refreshToken: string): Promise<void> => {
 };
 
 export const verifyEmail = async (plainToken: string): Promise<void> => {
-  const tokenRow = await repo.findEmailVerifyTokenByHash(sha256(plainToken));
-  if (!tokenRow) throw Errors.AUTH_TOKEN_INVALID();
+  const tokenHash = sha256(plainToken);
 
-  await repo.consumeEmailVerifyToken(tokenRow.id);
-  await repo.setEmailVerified(tokenRow.user_id);
+  // 정상 경로: 아직 소비되지 않고 만료 전인 토큰 → 인증 처리
+  const tokenRow = await repo.findEmailVerifyTokenByHash(tokenHash);
+  if (tokenRow) {
+    await repo.consumeEmailVerifyToken(tokenRow.id);
+    await repo.setEmailVerified(tokenRow.user_id);
+    return;
+  }
+
+  // 멱등 처리: 이미 소비된 토큰이라도 해당 유저가 이미 인증 완료 상태면 성공으로 응답한다.
+  // 인증 링크 중복 클릭·새로고침, 메일 클라이언트의 링크 프리페치, SPA 이펙트 중복 실행 등으로
+  // 같은 토큰이 두 번 POST되면 첫 요청이 인증을 끝내고 둘째 요청이 AUTH_TOKEN_INVALID로 실패해
+  // "실제로는 인증됐는데 화면엔 실패"로 보이는 문제를 막는다.
+  const consumed = await repo.findEmailVerifyTokenByHashAny(tokenHash);
+  if (consumed) {
+    const user = await repo.findUserById(consumed.user_id);
+    if (user?.email_verified) return; // 이미 인증 완료 → 멱등 성공
+  }
+
+  // 존재하지 않거나 만료됐는데 아직 미인증 → 실제 실패(재발송 유도)
+  throw Errors.AUTH_TOKEN_INVALID();
 };
 
 export const resendVerification = async (email: string): Promise<{ message: string }> => {

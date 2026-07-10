@@ -213,6 +213,23 @@ export const findEmailVerifyTokenByHash = async (
   return res.rows[0] ?? null;
 };
 
+/**
+ * consumed_at·만료 여부를 무시하고 해시로만 토큰 행을 찾는다.
+ * 멱등 인증 처리 전용 — 이미 소비된 토큰을 다시 눌렀을 때, 해당 유저가 이미
+ * 인증 완료 상태인지 확인해 "성공"으로 응답하기 위해서만 사용한다.
+ */
+export const findEmailVerifyTokenByHashAny = async (
+  tokenHash: string,
+): Promise<EmailVerifyTokenRow | null> => {
+  const res = await query<EmailVerifyTokenRow>(
+    `SELECT id, user_id, token_hash, expires_at, consumed_at
+     FROM email_verification_tokens
+     WHERE token_hash = $1`,
+    [tokenHash],
+  );
+  return res.rows[0] ?? null;
+};
+
 export const consumeEmailVerifyToken = async (id: number): Promise<void> => {
   await query(
     "UPDATE email_verification_tokens SET consumed_at = NOW() WHERE id = $1",
