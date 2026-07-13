@@ -318,12 +318,16 @@ export async function upsertRecordAndAddSession(
     }
 
     // 3) session INSERT
+    //    ON CONFLICT DO NOTHING(타겟 미지정) — id PK 중복뿐 아니라 내용 기반
+    //    부분 유니크 인덱스(uq_sessions_timer_user_start: user_id+session_start_ts,
+    //    source='timer')까지 함께 흡수한다. 즉 같은 세션을 다른 id로 재전송해도
+    //    새 행이 생기지 않는다(정지 연타/새로고침 중복 저장 방어).
     const sessRes = await client.query<SessionRow>(
       `INSERT INTO sessions
          (id, daily_record_id, user_id, category_id, session_start_ts, session_end_ts,
           duration_minutes, source)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       ON CONFLICT (id) DO NOTHING
+       ON CONFLICT DO NOTHING
        RETURNING *`,
       [
         sessionData.id,
@@ -356,14 +360,20 @@ export async function upsertRecordAndAddSession(
     await client.query("COMMIT");
     client.release();
 
-    // RETURNING 비어있으면 중복 → pool query로 기존 세션 반환
+    // RETURNING 비어있으면 중복 → pool query로 기존 세션 반환.
+    // 중복 사유는 두 가지: (a) 같은 id 재전송, (b) 내용 기반 중복(다른 id지만
+    // 같은 user_id+session_start_ts의 timer 세션). id로 먼저 찾고, 없으면
+    // 내용 키로 기존 행을 찾아 멱등 응답(isNew=false)한다.
     if (sessRes.rows.length > 0) {
       return { session: mapSession(sessRes.rows[0]), isNew: true };
     }
 
     const existing = await query<SessionRow>(
-      `SELECT * FROM sessions WHERE id = $1`,
-      [sessionData.id],
+      `SELECT * FROM sessions
+       WHERE id = $1
+          OR (user_id = $2 AND session_start_ts = $3 AND source = $4)
+       LIMIT 1`,
+      [sessionData.id, userId, sessionData.sessionStartTimestamp, sessionData.source],
     );
     return { session: mapSession(existing.rows[0]), isNew: false };
   } catch (err) {
